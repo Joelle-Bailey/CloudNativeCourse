@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"strconv"
@@ -45,6 +46,19 @@ func (s *server) GetMovieInfo(ctx context.Context, in *movieapi.MovieRequest) (*
 
 	return reply, nil
 
+}
+
+func (s *server) SetMovieInfo(ctx context.Context, in *movieapi.MovieData) (*movieapi.Status, error) {
+	cast := strings.Join(in.GetCast(), " ")
+
+	year := fmt.Sprintf("%d", in.GetYear())
+
+	moviedb[in.GetTitle()] = []string{year, in.GetDirector(), cast}
+
+	to_return := &movieapi.Status{}
+	to_return.Code = in.GetTitle() + " Added"
+
+	return to_return, nil
 }
 
 func main() {

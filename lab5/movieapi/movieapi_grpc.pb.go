@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type MovieInfoClient interface {
 	// Sends a requeest for movie info
 	GetMovieInfo(ctx context.Context, in *MovieRequest, opts ...grpc.CallOption) (*MovieReply, error)
+	SetMovieInfo(ctx context.Context, in *MovieData, opts ...grpc.CallOption) (*Status, error)
 }
 
 type movieInfoClient struct {
@@ -43,12 +44,22 @@ func (c *movieInfoClient) GetMovieInfo(ctx context.Context, in *MovieRequest, op
 	return out, nil
 }
 
+func (c *movieInfoClient) SetMovieInfo(ctx context.Context, in *MovieData, opts ...grpc.CallOption) (*Status, error) {
+	out := new(Status)
+	err := c.cc.Invoke(ctx, "/movieapi.MovieInfo/SetMovieInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MovieInfoServer is the server API for MovieInfo service.
 // All implementations must embed UnimplementedMovieInfoServer
 // for forward compatibility
 type MovieInfoServer interface {
 	// Sends a requeest for movie info
 	GetMovieInfo(context.Context, *MovieRequest) (*MovieReply, error)
+	SetMovieInfo(context.Context, *MovieData) (*Status, error)
 	mustEmbedUnimplementedMovieInfoServer()
 }
 
@@ -58,6 +69,9 @@ type UnimplementedMovieInfoServer struct {
 
 func (UnimplementedMovieInfoServer) GetMovieInfo(context.Context, *MovieRequest) (*MovieReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMovieInfo not implemented")
+}
+func (UnimplementedMovieInfoServer) SetMovieInfo(context.Context, *MovieData) (*Status, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetMovieInfo not implemented")
 }
 func (UnimplementedMovieInfoServer) mustEmbedUnimplementedMovieInfoServer() {}
 
@@ -90,6 +104,24 @@ func _MovieInfo_GetMovieInfo_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MovieInfo_SetMovieInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MovieData)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MovieInfoServer).SetMovieInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/movieapi.MovieInfo/SetMovieInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MovieInfoServer).SetMovieInfo(ctx, req.(*MovieData))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MovieInfo_ServiceDesc is the grpc.ServiceDesc for MovieInfo service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +132,10 @@ var MovieInfo_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMovieInfo",
 			Handler:    _MovieInfo_GetMovieInfo_Handler,
+		},
+		{
+			MethodName: "SetMovieInfo",
+			Handler:    _MovieInfo_SetMovieInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

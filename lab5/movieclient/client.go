@@ -5,6 +5,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"gitlab.com/Joelle-Bailey/CloudNativeCourse/lab5/movieapi"
@@ -27,15 +28,42 @@ func main() {
 
 	// Contact the server and print out its response.
 	title := defaultTitle
-	if len(os.Args) > 1 {
-		title = os.Args[1]
-	}
-	// Timeout if server doesn't respond
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	r, err := c.GetMovieInfo(ctx, &movieapi.MovieRequest{Title: title})
-	if err != nil {
-		log.Fatalf("could not get movie info: %v", err)
+
+	if len(os.Args) > 3 {
+		title = os.Args[1]
+		director := os.Args[3]
+
+		var cast []string
+		var i int = 4
+
+		for i < len(os.Args) {
+			cast = append(cast, os.Args[i])
+			i++
+		}
+
+		year, _ := strconv.ParseInt(os.Args[2], 10, 32)
+
+		s, err := c.SetMovieInfo(ctx, &movieapi.MovieData{Title: title, Year: int32(year), Director: director, Cast: cast})
+
+		if err != nil {
+			log.Fatalf("could not add movie: %v", err)
+		}
+		log.Printf("%s", s)
+
+	} else {
+
+		if len(os.Args) > 1 {
+			title = os.Args[1]
+		}
+
+		r, err := c.GetMovieInfo(ctx, &movieapi.MovieRequest{Title: title})
+		if err != nil {
+			log.Fatalf("could not get movie info: %v", err)
+		}
+		log.Printf("Movie Info for %s %d %s %v", title, r.GetYear(), r.GetDirector(), r.GetCast())
 	}
-	log.Printf("Movie Info for %s %d %s %v", title, r.GetYear(), r.GetDirector(), r.GetCast())
+
 }
