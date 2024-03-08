@@ -18,8 +18,12 @@ func TestParseResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Conditions{
-		Summary:     "Clouds",
-		Temperature: 281.33,
+		Summary:       "Clouds",
+		Temperature:   281.33,
+		Pressure:      1000,
+		Humidity:      90,
+		WindSpeed:     3.09,
+		WindDirection: 240,
 	}
 	got, err := ParseResponse(data)
 	if err != nil {
@@ -106,8 +110,12 @@ func TestGetWeather(t *testing.T) {
 	c.BaseURL = ts.URL
 	c.HTTPClient = ts.Client()
 	want := Conditions{
-		Summary:     "Clouds",
-		Temperature: 281.33,
+		Summary:       "Clouds",
+		Temperature:   281.33,
+		Pressure:      1000,
+		Humidity:      90,
+		WindSpeed:     3.09,
+		WindDirection: 240,
 	}
 	got, err := c.GetWeather("Paris,FR")
 	if err != nil {

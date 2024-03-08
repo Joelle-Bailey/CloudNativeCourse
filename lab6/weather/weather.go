@@ -17,8 +17,12 @@ func (t Temperature) Fahrenheit() float64 {
 }
 
 type Conditions struct {
-	Summary     string
-	Temperature Temperature
+	Summary       string
+	Temperature   Temperature
+	Pressure      float64
+	Humidity      float64
+	WindSpeed     float64
+	WindDirection float64
 }
 
 type OWMResponse struct {
@@ -26,7 +30,13 @@ type OWMResponse struct {
 		Main string
 	}
 	Main struct {
-		Temp Temperature
+		Temp     Temperature
+		Pressure float64
+		Humidity float64
+	}
+	Wind struct {
+		Speed float64
+		Deg   float64
 	}
 }
 
@@ -86,8 +96,12 @@ func ParseResponse(data []byte) (Conditions, error) {
 		return Conditions{}, fmt.Errorf("invalid API response %s: require at least one weather element", data)
 	}
 	conditions := Conditions{
-		Summary:     resp.Weather[0].Main,
-		Temperature: resp.Main.Temp,
+		Summary:       resp.Weather[0].Main,
+		Temperature:   resp.Main.Temp,
+		Pressure:      resp.Main.Pressure,
+		Humidity:      resp.Main.Humidity,
+		WindSpeed:     resp.Wind.Speed,
+		WindDirection: resp.Wind.Deg,
 	}
 	return conditions, nil
 }
@@ -117,6 +131,6 @@ func RunCLI() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("%s %.1fº\n", conditions.Summary, conditions.Temperature.Fahrenheit())
+	fmt.Printf("%s %.1fº Pressure:%.f, Humidity:%.f, Wind:%.1f at %.1fº\n", conditions.Summary, conditions.Temperature.Fahrenheit(), conditions.Pressure, conditions.Humidity, conditions.WindSpeed, conditions.WindDirection)
 
 }
