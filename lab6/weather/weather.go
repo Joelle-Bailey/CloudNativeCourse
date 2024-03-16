@@ -131,6 +131,6 @@ func RunCLI() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("%s %.1fº Pressure:%.f, Humidity:%.f, Wind:%.1f at %.1fº\n", conditions.Summary, conditions.Temperature.Fahrenheit(), conditions.Pressure, conditions.Humidity, conditions.WindSpeed, conditions.WindDirection)
+	fmt.Printf("%s %.1fº Pressure:%.f hPa, Percent Humidity:%.f, Wind:%.1f m/s at %.1fº\n", conditions.Summary, conditions.Temperature.Fahrenheit(), conditions.Pressure, conditions.Humidity, conditions.WindSpeed, conditions.WindDirection)
 
 }
