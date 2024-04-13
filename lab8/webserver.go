@@ -4,11 +4,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 
 	"time"
 
@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	mongodbEndpoint = "mongodb://localhost:27017" // Find this from the Mongo container
+	mongodbEndpoint = "mongodb://172.18.0.2:27017" // Find this from the Mongo container
 )
 
 type dollars float32
@@ -45,10 +45,49 @@ type Post struct {
 type database struct {
 	data    *mongo.Collection
 	connect context.Context
-	mu      sync.Mutex
+	client  *mongo.Client
+}
+
+func retry(ctx context.Context, maxAttempts int, interval time.Duration, operation func() error) error {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := operation()
+		if err == nil {
+			// Operation succeeded, no need to retry
+			return nil
+		}
+
+		// Check if the context is done (cancelled or timed out)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// If this is the last attempt, return the error without retrying
+		if attempt == maxAttempts {
+			return err
+		}
+
+		// Sleep for the specified interval before retrying
+		select {
+		case <-time.After(interval):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func newDatabase() *database {
+
+	operation := func() error {
+		// Simulate an operation that may fail
+		if time.Now().Second()%2 == 0 {
+			return nil // Success
+		} else {
+			return errors.New("operation failed")
+		}
+	}
 
 	client, err := mongo.NewClient(
 		options.Client().ApplyURI(mongodbEndpoint),
@@ -56,18 +95,24 @@ func newDatabase() *database {
 	checkError(err)
 
 	// Connect to mongo
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
 	err = client.Connect(ctx)
 
-	// Disconnect
-	defer client.Disconnect(ctx)
+	err = retry(ctx, 4, time.Second, operation)
+
+	if err != nil {
+		fmt.Printf("Operation failed after retries: %v\n", err)
+	} else {
+		fmt.Println("Operation succeeded")
+	}
 
 	// select collection from database
-	col := client.Database("blog").Collection("posts")
+	col := client.Database("inventory").Collection("items")
 
 	return &database{
 		data:    col,
 		connect: ctx,
+		client:  client,
 	}
 }
 
@@ -94,7 +139,7 @@ func (db database) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, p := range posts {
-		fmt.Printf("%s: %d\n", p.Item, p.Price)
+		fmt.Fprintf(w, "%s: %f\n", p.Item, p.Price)
 	}
 }
 
@@ -104,7 +149,7 @@ func (db database) price(w http.ResponseWriter, r *http.Request) {
 	// find one document
 	var p Post
 	err := db.data.FindOne(context.Background(), bson.M{"item": item}).Decode(&p)
-	if err != nil {
+	if err == nil {
 		if err == mongo.ErrNoDocuments {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, "item not found\n")
@@ -114,7 +159,7 @@ func (db database) price(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "error finding item: %v\n", err)
 		return
 	}
-	fmt.Printf("price of %s: %d\n", item, p.Price)
+	fmt.Fprintf(w, "price of %s: %d\n", item, p.Price)
 }
 
 func (db database) create(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +172,24 @@ func (db database) create(w http.ResponseWriter, r *http.Request) {
 	if ok != nil {
 		w.WriteHeader(http.StatusNotFound) //404 page
 		fmt.Fprintf(w, "could not convert price: %q\n", item)
+		return
+	}
+
+	filter := bson.M{"item": item}
+	found := db.data.FindOne(context.Background(), filter)
+
+	if found.Err() == nil {
+		if found.Err() != mongo.ErrNoDocuments {
+			// Item not found
+			// Respond with 404 Not Found
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "item alreay in inventory: %q\n", item)
+			return
+		}
+		// Other error occurred
+		// Respond with 500 Internal Server Error
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error checking item: %v\n", found.Err())
 		return
 	}
 
@@ -198,25 +261,8 @@ func (db database) remove(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
 	db := newDatabase()
-
-	_, err := db.data.InsertOne(db.connect, &Post{
-		ID:        primitive.NewObjectID(),
-		Item:      "shoes",
-		Price:     50,
-		CreatedAt: time.Now(),
-	})
-
-	_, err = db.data.InsertOne(db.connect, &Post{
-		ID:        primitive.NewObjectID(),
-		Item:      "socks",
-		Price:     5,
-		CreatedAt: time.Now(),
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/list", http.HandlerFunc(db.list))
@@ -225,4 +271,6 @@ func main() {
 	mux.Handle("/update", http.HandlerFunc(db.update))
 	mux.Handle("/remove", http.HandlerFunc(db.remove))
 	log.Fatal(http.ListenAndServe("localhost:8000", mux))
+
+	//defer db.client.Disconnect(db.connect)
 }
